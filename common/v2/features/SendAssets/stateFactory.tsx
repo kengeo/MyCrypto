@@ -56,7 +56,6 @@ interface State {
 const TxConfigFactory: TUseStateReducerFactory<State> = ({ state, setState }) => {
   const { assets } = useContext(AssetContext);
   const { networks } = useContext(NetworkContext);
-
   const { addNewTransactionToAccount, getAccountByAddressAndNetworkName } = useContext(
     AccountContext
   );
