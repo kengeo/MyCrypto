@@ -129,7 +129,8 @@ const SwapAssetsFlow = (props: RouteComponentProps<{}>) => {
         fromAsset,
         toAsset,
         fromAmount,
-        toAmount
+        toAmount,
+        swapPrice
       },
       actions: {
         handleAccountSelected,

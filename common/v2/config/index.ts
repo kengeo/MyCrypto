@@ -37,7 +37,8 @@ export {
   DEFAULT_NETWORK_FOR_FALLBACK,
   DEFAULT_NETWORK,
   GITHUB_RELEASE_NOTES_URL,
-  TOKEN_INFO_URL
+  TOKEN_INFO_URL,
+  MYC_COMMISSION
 } from './constants';
 export { Fiats } from './fiats';
 
