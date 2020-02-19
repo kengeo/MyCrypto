@@ -134,7 +134,7 @@ const SwapFlowFactory: TUseStateReducerFactory<SwapState> = ({ state, setState }
       }));
 
       const commissionIncreasedAmount = withCommission({
-        amount: Number(value),
+        amount: convert(Number(value)),
         rate: MYC_DEXAG_COMMISSION_RATE
       });
 
@@ -147,7 +147,7 @@ const SwapFlowFactory: TUseStateReducerFactory<SwapState> = ({ state, setState }
       setState((prevState: SwapState) => ({
         ...prevState,
         isCalculatingFromAmount: false,
-        fromAmount: (commissionIncreasedAmount*price).toString(),
+        fromAmount: (commissionIncreasedAmount * price).toString(),
         fromAmountError: '',
         toAmountError: '',
         swapPrice: price,
