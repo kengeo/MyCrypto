@@ -3,9 +3,8 @@ import styled from 'styled-components';
 import { Icon } from '@mycrypto/ui';
 
 import { COLORS } from 'v2/theme';
-import { InlineErrorMsg, Spinner } from 'v2/components';
-
-const { PASTEL_RED, BRIGHT_SKY_BLUE, DARK_SILVER, LIGHT_GREY } = COLORS;
+import { InlineMessage, Spinner } from 'v2/components';
+import { InlineMessageType } from 'v2/types';
 
 const MainWrapper = styled.div<WrapperProps>`
   margin-bottom: ${props => props.marginBottom};
@@ -28,6 +27,7 @@ const Label = styled.p`
 
 interface CustomInputProps {
   inputError?: string | JSX.Element;
+  inputErrorBorder?: boolean;
   showEye?: boolean;
   customIcon?: React.ReactType;
   height?: string;
@@ -47,11 +47,11 @@ const CustomInput = styled.input<CustomInputProps>`
     box-shadow: ${props => props.theme.outline};
   }
   ::placeholder {
-    color: ${DARK_SILVER};
+    color: ${COLORS.GREY_LIGHT};
     opacity: 1;
   }
-  border-color: ${props => (props.inputError ? PASTEL_RED : '')};
-  ${props => props.height && `height: ${props.height}`}
+  border-color: ${props => (props.inputError && props.inputErrorBorder ? COLORS.PASTEL_RED : '')};
+  ${props => props.height && `height: ${props.height}`};
 `;
 
 const CustomTextArea = styled.textarea<CustomInputProps>`
@@ -66,10 +66,10 @@ const CustomTextArea = styled.textarea<CustomInputProps>`
     box-shadow: ${props => props.theme.outline};
   }
   ::placeholder {
-    color: ${DARK_SILVER};
+    color: ${COLORS.GREY_LIGHT};
     opacity: 1;
   }
-  border-color: ${props => (props.inputError ? PASTEL_RED : '')};
+  border-color: ${props => (props.inputError ? COLORS.PASTEL_RED : '')};
   resize:  ${props => (props.resizable ? 'default' : 'none')};
   ${props => props.height && `height: ${props.height}`};
   ${props => props.maxHeight && `max-height: ${props.maxHeight}`};
@@ -81,7 +81,7 @@ const InputWrapper = styled.div`
 
   input {
     :disabled {
-      background-color: ${LIGHT_GREY};
+      background-color: ${COLORS.GREY_LIGHTER};
     }
   }
 `;
@@ -95,7 +95,7 @@ const EyeIcon = styled(Icon)`
     margin-top: 6px;
     width: 23px;
     height: 23px;
-    color: ${(props: CustomIconProps) => (props.showPassword ? BRIGHT_SKY_BLUE : '')};
+    color: ${(props: CustomIconProps) => (props.showPassword ? COLORS.BLUE_BRIGHT : '')};
     cursor: pointer;
     user-select: none;
   }
@@ -121,12 +121,12 @@ const CustomIconWrapper = styled.div`
 
 const CustomIcon = styled.span`
   display: flex;
-  border-left: 1px solid ${COLORS.GEYSER_GREY};
+  border-left: 1px solid ${COLORS.GREY_GEYSER};
   img {
     margin-top: 2px;
     margin-bottom: 2px;
     margin-left: 8px;
-    color: ${BRIGHT_SKY_BLUE}};
+    color: ${COLORS.BLUE_BRIGHT}};
     cursor: pointer;
     user-select: none;
   }
@@ -138,6 +138,8 @@ interface Props {
   label?: string | JSX.Element;
   value: string | undefined;
   inputError?: string | JSX.Element | undefined;
+  inputErrorType?: InlineMessageType;
+  inputErrorBorder?: boolean;
   showEye?: boolean;
   customIcon?: React.ElementType;
   textarea?: boolean;
@@ -171,6 +173,8 @@ export class InputField extends Component<Props> {
       onBlur,
       onFocus,
       inputError,
+      inputErrorType,
+      inputErrorBorder = false,
       type,
       showEye,
       customIcon,
@@ -213,6 +217,7 @@ export class InputField extends Component<Props> {
               onBlur={onBlur}
               onFocus={onFocus}
               inputError={inputError}
+              inputErrorBorder={inputErrorBorder}
               onKeyUp={this.handleKeyUp}
               showEye={showEye}
               customIcon={customIcon}
@@ -244,7 +249,7 @@ export class InputField extends Component<Props> {
           )}
         </InputWrapper>
 
-        {inputError && <InlineErrorMsg>{inputError}</InlineErrorMsg>}
+        {inputError && <InlineMessage type={inputErrorType}>{inputError}</InlineMessage>}
       </MainWrapper>
     );
   }

@@ -41,6 +41,6 @@ export {
   MYC_DEXAG_COMMISSION_RATE
 } from './constants';
 export { Fiats } from './fiats';
-
+export { IS_ACTIVE_FEATURE } from './isActiveFeature';
 export { ROUTE_PATHS } from './routePaths';
 export type IWalletConfig = IWalletConfig;

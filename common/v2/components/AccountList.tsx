@@ -10,12 +10,11 @@ import {
   Network,
   RowDeleteOverlay,
   RouterLink,
-  Typography,
   EditableText
 } from 'v2/components';
 import { truncate } from 'v2/utils';
-import { BREAK_POINTS, COLORS, breakpointToNumber } from 'v2/theme';
-import { ExtendedAccount, StoreAccount, ExtendedAddressBook } from 'v2/types';
+import { BREAK_POINTS, COLORS, SPACING, breakpointToNumber } from 'v2/theme';
+import { IAccount, StoreAccount, ExtendedAddressBook } from 'v2/types';
 import {
   AccountContext,
   getLabelByAccount,
@@ -27,6 +26,7 @@ import { DashboardPanel } from './DashboardPanel';
 import { RatesContext } from 'v2/services';
 import { default as Currency } from './Currency';
 import { TUuid } from 'v2/types/uuid';
+import IconArrow from './IconArrow';
 
 const Label = styled.span`
   display: flex;
@@ -45,13 +45,13 @@ const LabelWithWallet = styled.span`
 `;
 
 const WalletTypeLabel = styled.div`
-  background: ${COLORS.MIDDLE_GREY};
   display: inline-block;
   text-align: center;
+  background: ${COLORS.GREY};
   border-radius: 600px;
+  color: ${COLORS.WHITE};
   font-size: 0.6em;
   padding: 3px 6px;
-  color: ${COLORS.WHITE};
 `;
 
 const SIdenticon = styled(Identicon)`
@@ -89,8 +89,8 @@ const FavoriteButton = styled(Button)`
     span {
       svg {
         path {
-          fill: ${(props: IFavoriteProps) => (props.favorited ? COLORS.GOLD : 'white')};
-          stroke: ${(props: IFavoriteProps) => (props.favorited ? COLORS.GOLD : '#7b8695')};
+          fill: ${(props: IFavoriteProps) => (props.favorited ? COLORS.GOLD : COLORS.WHITE)};
+          stroke: ${(props: IFavoriteProps) => (props.favorited ? COLORS.GOLD : COLORS.GREY)};
         }
       }
     }
@@ -110,17 +110,28 @@ const DeleteButton = styled(Button)`
 
 const TableContainer = styled.div`
   display: block;
-  max-height: 394px;
   overflow: auto;
+  flex: 1;
 `;
 
 const AccountListFooterWrapper = styled.div`
   & * {
-    color: ${COLORS.BRIGHT_SKY_BLUE};
+    color: ${COLORS.BLUE_BRIGHT};
   }
   & img {
     height: 1.1em;
     margin-right: 0.5em;
+  }
+`;
+
+const AddAccountButton = styled(Button)`
+  color: ${COLORS.BLUE_BRIGHT};
+  padding: ${SPACING.BASE};
+  opacity: 1;
+  &:hover {
+    transition: 200ms ease all;
+    transform: scale(1.02);
+    opacity: 0.7;
   }
 `;
 
@@ -159,7 +170,9 @@ export default function AccountList(props: AccountListProps) {
     return (
       <AccountListFooterWrapper>
         <RouterLink to={ROUTE_PATHS.ADD_ACCOUNT.path}>
-          <Typography>{`+ ${translateRaw('ACCOUNT_LIST_TABLE_ADD_ACCOUNT')}`}</Typography>
+          <AddAccountButton basic={true}>{`+ ${translateRaw(
+            'ACCOUNT_LIST_TABLE_ADD_ACCOUNT'
+          )}`}</AddAccountButton>
         </RouterLink>
       </AccountListFooterWrapper>
     );
@@ -192,31 +205,149 @@ export default function AccountList(props: AccountListProps) {
   );
 }
 
+type ISortTypes =
+  | 'label'
+  | 'label-reverse'
+  | 'address'
+  | 'address-reverse'
+  | 'network'
+  | 'network-reverse'
+  | 'value'
+  | 'value-reverse';
+type IColumnValues =
+  | 'ACCOUNT_LIST_LABEL'
+  | 'ACCOUNT_LIST_ADDRESS'
+  | 'ACCOUNT_LIST_NETWORK'
+  | 'ACCOUNT_LIST_VALUE';
+
+export interface ISortingState {
+  sortState: {
+    ACCOUNT_LIST_LABEL: 'label' | 'label-reverse';
+    ACCOUNT_LIST_ADDRESS: 'address' | 'address-reverse';
+    ACCOUNT_LIST_NETWORK: 'network' | 'network-reverse';
+    ACCOUNT_LIST_VALUE: 'value' | 'value-reverse';
+  };
+  activeSort: ISortTypes;
+}
+
+const initialSortingState: ISortingState = {
+  sortState: {
+    ACCOUNT_LIST_LABEL: 'label',
+    ACCOUNT_LIST_ADDRESS: 'address',
+    ACCOUNT_LIST_NETWORK: 'network',
+    ACCOUNT_LIST_VALUE: 'value'
+  },
+  activeSort: 'value'
+};
+
+interface ITableFullAccountType {
+  account: StoreAccount;
+  index: number;
+  label: string;
+  total: number;
+  addressCard: ExtendedAddressBook;
+}
+
+type TSortFunction = (a: ITableFullAccountType, b: ITableFullAccountType) => number;
+
+const getSortingFunction = (sortKey: ISortTypes): TSortFunction => {
+  switch (sortKey) {
+    case 'value':
+      return (a: ITableFullAccountType, b: ITableFullAccountType) => b.total - a.total;
+    case 'value-reverse':
+      return (a: ITableFullAccountType, b: ITableFullAccountType) => a.total - b.total;
+    case 'label':
+      return (a: ITableFullAccountType, b: ITableFullAccountType) => a.label.localeCompare(b.label);
+    case 'label-reverse':
+      return (a: ITableFullAccountType, b: ITableFullAccountType) => b.label.localeCompare(a.label);
+    case 'address':
+      return (a: ITableFullAccountType, b: ITableFullAccountType) =>
+        a.account.address.localeCompare(b.account.address);
+    case 'address-reverse':
+      return (a: ITableFullAccountType, b: ITableFullAccountType) =>
+        b.account.address.localeCompare(a.account.address);
+    case 'network':
+      return (a: ITableFullAccountType, b: ITableFullAccountType) =>
+        a.account.networkId.localeCompare(b.account.networkId);
+    case 'network-reverse':
+      return (a: ITableFullAccountType, b: ITableFullAccountType) =>
+        b.account.networkId.localeCompare(a.account.networkId);
+  }
+};
+
 function buildAccountTable(
   accounts: StoreAccount[],
-  deleteAccount: (a: ExtendedAccount) => void,
-  updateAccount: (u: TUuid, a: ExtendedAccount) => void,
+  deleteAccount: (a: IAccount) => void,
+  updateAccount: (u: TUuid, a: IAccount) => void,
   deletable?: boolean,
   favoritable?: boolean,
   copyable?: boolean,
   overlayRows?: number[],
   setDeletingIndex?: any
 ) {
+  const [sortingState, setSortingState] = useState(initialSortingState);
   const { totalFiat } = useContext(StoreContext);
   const { getAssetRate } = useContext(RatesContext);
   const { settings } = useContext(SettingsContext);
   const { addressBook, updateAddressBooks, createAddressBooks } = useContext(AddressBookContext);
+
+  const updateSortingState = (id: IColumnValues) => {
+    const currentBtnState = sortingState.sortState[id];
+    if (currentBtnState.indexOf('-reverse') > -1) {
+      const newActiveSort = currentBtnState.split('-reverse')[0] as ISortTypes;
+      setSortingState({
+        sortState: {
+          ...sortingState.sortState,
+          [id]: newActiveSort
+        },
+        activeSort: newActiveSort
+      });
+    } else {
+      const newActiveSort = (currentBtnState + '-reverse') as ISortTypes;
+      setSortingState({
+        sortState: {
+          ...sortingState.sortState,
+          [id]: newActiveSort
+        },
+        activeSort: newActiveSort
+      });
+    }
+  };
+
+  const getColumnSortDirection = (id: IColumnValues): boolean =>
+    sortingState.sortState[id].indexOf('-reverse') > -1 ? true : false;
+
+  const convertColumnToClickable = (id: IColumnValues) => (
+    <div onClick={() => updateSortingState(id)}>
+      {translateRaw(id)} <IconArrow isFlipped={getColumnSortDirection(id)} />
+    </div>
+  );
+
   const columns = [
-    translateRaw('ACCOUNT_LIST_LABEL'),
-    translateRaw('ACCOUNT_LIST_ADDRESS'),
-    translateRaw('ACCOUNT_LIST_NETWORK'),
-    <HeaderAlignment key={'ACCOUNT_LIST_VALUE'} align="center">
+    convertColumnToClickable('ACCOUNT_LIST_LABEL'),
+    convertColumnToClickable('ACCOUNT_LIST_ADDRESS'),
+    convertColumnToClickable('ACCOUNT_LIST_NETWORK'),
+    <HeaderAlignment
+      key={'ACCOUNT_LIST_VALUE'}
+      align="center"
+      onClick={() => updateSortingState('ACCOUNT_LIST_VALUE')}
+    >
       {translateRaw('ACCOUNT_LIST_VALUE')}
+      <IconArrow isFlipped={getColumnSortDirection('ACCOUNT_LIST_VALUE')} />
     </HeaderAlignment>,
     <HeaderAlignment key={'ACCOUNT_LIST_DELETE'} align="center">
       {translateRaw('ACCOUNT_LIST_DELETE')}
     </HeaderAlignment>
   ];
+
+  const getFullTableData = accounts
+    .map((account, index) => {
+      const addressCard: ExtendedAddressBook | undefined = getLabelByAccount(account, addressBook);
+      const total = totalFiat([account])(getAssetRate);
+      const label = addressCard ? addressCard.label : 'Unknown Account';
+      return { account, index, label, total, addressCard };
+    })
+    .sort(getSortingFunction(sortingState.activeSort));
 
   return {
     head: deletable ? columns : columns.slice(0, columns.length - 1),
@@ -239,10 +370,7 @@ function buildAccountTable(
         <></>
       ),
     overlayRows,
-    body: accounts.map((account, index) => {
-      const addressCard: ExtendedAddressBook | undefined = getLabelByAccount(account, addressBook);
-      const total = totalFiat([account])(getAssetRate);
-      const label = addressCard ? addressCard.label : 'Unknown Account';
+    body: getFullTableData.map(({ account, index, label, total, addressCard }) => {
       const bodyContent = [
         <Label key={index}>
           <SIdenticon address={account.address} />
@@ -308,13 +436,7 @@ function buildAccountTable(
         : bodyContent;
     }),
     config: {
-      primaryColumn: translateRaw('ACCOUNT_LIST_LABEL'),
-      sortableColumn: translateRaw('ACCOUNT_LIST_LABEL'),
-      sortFunction: (a: any, b: any) => {
-        const aLabel = a.props.label;
-        const bLabel = b.props.label;
-        return aLabel === bLabel ? true : aLabel.localeCompare(bLabel);
-      }
+      primaryColumn: translateRaw('ACCOUNT_LIST_LABEL')
     }
   };
 }

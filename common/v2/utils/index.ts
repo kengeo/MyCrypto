@@ -9,7 +9,13 @@ export { isUrl } from './isUrl';
 export { truncate } from './truncate';
 export { useOnClickOutside } from './useOnClickOutside';
 export { trace } from './trace';
-export { convertToFiat, convertToFiatFromAsset, weiToFloat, withCommission } from './convert';
+export {
+  convertToFiat,
+  convertToFiatFromAsset,
+  weiToFloat,
+  convert,
+  withCommission
+} from './convert';
 export { isArrayEqual } from './isArrayEqual';
 export { useInterval } from './useInterval';
 export * from './useStateReducer';
@@ -26,8 +32,13 @@ export {
 export { makeBlob } from './blob';
 export { default as consoleAdvertisement } from './consoleAdvertisement';
 export { tap } from './tap';
-export { fromTxReceiptObj } from './transaction';
-export { formatErrorEmail, formatEmailMarkdown, formatErrorEmailMarkdown } from './emailFormatter';
+export { fromTxReceiptObj, makeTxConfigFromSignedTx } from './transaction';
+export {
+  formatErrorEmail,
+  formatSupportEmail,
+  formatEmailMarkdown,
+  formatErrorEmailMarkdown
+} from './emailFormatter';
 export { withContext } from './withContext';
 export { getWeb3Config } from './web3';
 export { toArray } from './toArray';

@@ -1,13 +1,14 @@
 import React, { useState, useContext, useMemo, createContext, useEffect } from 'react';
 import * as R from 'ramda';
 import {
-  Account,
+  TAddress,
+  IRawAccount,
   StoreAccount,
   StoreAsset,
   Network,
   TTicker,
   ExtendedAsset,
-  ExtendedAccount,
+  IAccount,
   WalletId,
   Asset,
   ITxReceipt,
@@ -52,15 +53,15 @@ interface State {
   assetTickers(targetAssets?: StoreAsset[]): TTicker[];
   assetUUIDs(targetAssets?: StoreAsset[]): any[];
   scanTokens(asset?: ExtendedAsset): Promise<void[]>;
-  deleteAccountFromCache(account: ExtendedAccount): void;
+  deleteAccountFromCache(account: IAccount): void;
   addAccount(
     networkId: NetworkId,
     address: string,
     accountType: WalletId | undefined,
     dPath: string
-  ): Account | undefined;
+  ): IRawAccount | undefined;
   getAssetByTicker(symbol: string): Asset | undefined;
-  getAccount(a: Account): StoreAccount | undefined;
+  getAccount(a: IRawAccount): StoreAccount | undefined;
 }
 export const StoreContext = createContext({} as State);
 
@@ -228,7 +229,7 @@ export const StoreProvider: React.FC = ({ children }) => {
     },
     addAccount: (
       networkId: NetworkId,
-      address: string,
+      address: TAddress,
       accountType: WalletId | undefined,
       dPath: string
     ) => {
@@ -239,7 +240,7 @@ export const StoreProvider: React.FC = ({ children }) => {
         accountType! === WalletId.WEB3 ? WalletId[getWeb3Config().id] : accountType!;
       const newAsset: Asset = getNewDefaultAssetTemplateByNetwork(assets)(network);
       const newUUID = generateUUID();
-      const account: Account = {
+      const account: IRawAccount = {
         address,
         networkId,
         wallet: walletType,

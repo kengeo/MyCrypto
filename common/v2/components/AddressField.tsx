@@ -1,25 +1,29 @@
 import React from 'react';
-import { Input, Identicon } from '@mycrypto/ui';
-import { FieldProps, Field, FormikTouched, FormikErrors } from 'formik';
+import { Identicon } from '@mycrypto/ui';
+import { FieldProps, Field } from 'formik';
 import styled from 'styled-components';
 
-import { translateRaw } from 'v2/translations';
-import { InlineErrorMsg, DomainStatus } from 'v2/components';
-import { Network, IFormikFields } from 'v2/types';
+import { Network, InlineMessageType } from 'v2/types';
+import { DomainStatus } from 'v2/components';
+import { getIsValidENSAddressFunction } from 'v2/services/EthService';
 import { monospace } from 'v2/theme';
 import { ResolutionError } from '@unstoppabledomains/resolution';
-import UnstoppableResolution from 'v2/services/UnstoppableService';
+import InputField from './InputField';
 /*
   Eth address field to be used within a Formik Form
   - the 'fieldname' must exist wihtin the Formik default fields
   - validation of the field is handled here.
 */
 
+interface ErrorObject {
+  type: InlineMessageType;
+  message: string | JSX.Element;
+}
+
 interface Props {
-  error?: string;
+  error?: string | ErrorObject;
   className?: string;
   fieldName: string;
-  touched?: FormikTouched<IFormikFields>;
   placeholder?: string;
   network?: Network;
   isLoading: boolean;
@@ -36,7 +40,6 @@ const Wrapper = styled.div`
 
 const InputWrapper = styled.div`
   display: flex;
-  align-items: center;
 
   > div:nth-child(2) {
     flex: 1;
@@ -60,7 +63,7 @@ interface InputProps {
   value: string;
 }
 
-const SInput = styled(Input)<InputProps>`
+const SInput = styled(InputField)<InputProps>`
   ${props => props.value && `font-family: ${monospace};`}
   font-size: 1rem !important; // to override Typography from mycrypto/ui
 `;
@@ -68,7 +71,6 @@ const SInput = styled(Input)<InputProps>`
 function ETHAddressField({
   className,
   fieldName,
-  touched,
   error,
   network,
   placeholder = 'ETH Address or blockchain domain',
@@ -79,10 +81,8 @@ function ETHAddressField({
   onBlur,
   onChange
 }: Props) {
-  const validate = (value: string): FormikErrors<string> =>
-    value && !UnstoppableResolution.isValidDomain(value)
-      ? translateRaw('TO_FIELD_ERROR')
-      : translateRaw('REQUIRED');
+  const errorMessage = typeof error === 'object' ? error.message : error;
+  const errorType = typeof error === 'object' ? error.type : undefined;
 
   // By destructuring 'field' in the rendered component we are mapping
   // the Inputs 'value' and 'onChange' props to Formiks handlers.
@@ -90,7 +90,6 @@ function ETHAddressField({
     <>
       <Field
         name={fieldName}
-        validate={validate}
         validateOnChange={false}
         render={({ field, form }: FieldProps) => (
           <Wrapper className={className}>
@@ -101,6 +100,9 @@ function ETHAddressField({
               <SInput
                 data-lpignore="true"
                 {...field}
+                inputErrorType={errorType}
+                inputError={errorMessage}
+                marginBottom={'0'}
                 value={field.value.display}
                 placeholder={placeholder}
                 onChange={e => {
@@ -116,10 +118,13 @@ function ETHAddressField({
                   if (!network || !network.chainId) {
                     return;
                   }
-                  const action = handleDomainResolve
-                    ? (domainName: string) => handleDomainResolve(domainName)
-                    : (address: string) =>
-                        form.setFieldValue(fieldName, { display: address, value: address });
+                  const isValidENSAddress = getIsValidENSAddressFunction(network.chainId);
+                  const isENSAddress = isValidENSAddress(e.currentTarget.value);
+                  const action =
+                    isENSAddress && handleDomainResolve
+                      ? (domainName: string) => handleDomainResolve(domainName)
+                      : (address: string) =>
+                          form.setFieldValue(fieldName, { display: address, value: address });
                   await action(e.currentTarget.value);
                   form.setFieldTouched(fieldName);
                   if (onBlur) {
@@ -135,9 +140,6 @@ function ETHAddressField({
               isError={isError}
               resolutionError={resolutionError}
             />
-            {error && touched && touched.address ? (
-              <InlineErrorMsg className="SendAssetsForm-errors">{error}</InlineErrorMsg>
-            ) : null}
           </Wrapper>
         )}
       />

@@ -8,12 +8,21 @@ import { DEFAULT_NETWORK } from 'v2/config';
 import { generateUUID } from 'v2/utils';
 import {
   AccountContext,
-  getLabelByAccount,
+  getLabelByAddressAndNetwork,
   AddressBookContext,
-  DataContext
+  DataContext,
+  NetworkContext
 } from 'v2/services/Store';
 import { useDevTools } from 'v2/services';
-import { Account, AddressBook, WalletId, AssetBalanceObject, ExtendedAddressBook } from 'v2/types';
+import {
+  TAddress,
+  IRawAccount,
+  AddressBook,
+  WalletId,
+  AssetBalanceObject,
+  ExtendedAddressBook,
+  Network
+} from 'v2/types';
 
 import ToolsNotifications from './ToolsNotifications';
 import ToolsAccountList from './ToolsAccountList';
@@ -23,13 +32,15 @@ const DevToolsInput = styled(Input)`
   font-size: 1em;
 `;
 
-const renderAccountForm = (addressBook: ExtendedAddressBook[]) => ({
-  values,
-  handleChange,
-  handleBlur,
-  isSubmitting
-}: FormikProps<Account>) => {
-  const detectedLabel: AddressBook | undefined = getLabelByAccount(values, addressBook);
+const renderAccountForm = (
+  addressBook: ExtendedAddressBook[],
+  getNetworkByName: (name: string) => Network | undefined
+) => ({ values, handleChange, handleBlur, isSubmitting }: FormikProps<IRawAccount>) => {
+  const detectedLabel: AddressBook | undefined = getLabelByAddressAndNetwork(
+    values.address,
+    addressBook,
+    getNetworkByName(values.networkId)
+  );
   const label = detectedLabel ? detectedLabel.label : 'Unknown Account';
   return (
     <Form>
@@ -116,11 +127,12 @@ const ErrorTools = () => {
 };
 
 const DevTools = () => {
+  const { getNetworkByName } = useContext(NetworkContext);
   const { addressBook } = useContext(AddressBookContext);
   const { accounts, createAccountWithID, deleteAccount } = useContext(AccountContext);
   const dummyAccount = {
     label: 'Foo',
-    address: '0x80200997f095da94E404F7E0d581AAb1fFba9f7d',
+    address: '0x80200997f095da94E404F7E0d581AAb1fFba9f7d' as TAddress,
     networkId: DEFAULT_NETWORK,
     assets: [
       {
@@ -155,12 +167,12 @@ const DevTools = () => {
         <div className="Settings-heading">Enter a new Account</div>
         <Formik
           initialValues={dummyAccount}
-          onSubmit={(values: Account, { setSubmitting }) => {
+          onSubmit={(values: IRawAccount, { setSubmitting }) => {
             createAccountWithID(values, generateUUID());
             setSubmitting(false);
           }}
         >
-          {renderAccountForm(addressBook)}
+          {renderAccountForm(addressBook, getNetworkByName)}
         </Formik>
       </Panel>
     </React.Fragment>

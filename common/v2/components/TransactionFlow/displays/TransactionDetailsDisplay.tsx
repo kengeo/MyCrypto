@@ -2,7 +2,7 @@ import React, { useState, useContext } from 'react';
 import { Network } from '@mycrypto/ui';
 import { bigNumberify } from 'ethers/utils';
 
-import { Asset, StoreAccount, ExtendedAccount, Network as INetwork, ITxObject } from 'v2/types';
+import { Asset, StoreAccount, IAccount, Network as INetwork, ITxObject } from 'v2/types';
 import { baseToConvertedUnit, totalTxFeeToString } from 'v2/services/EthService';
 import { getAccountBalance, StoreContext } from 'v2/services/Store';
 import { CopyableCodeBlock, Button } from 'v2/components';
@@ -13,7 +13,7 @@ import { COLORS } from 'v2/theme';
 
 import './TransactionDetailsDisplay.scss';
 
-const { BRIGHT_SKY_BLUE } = COLORS;
+const { BLUE_BRIGHT } = COLORS;
 
 interface Props {
   baseAsset: Asset;
@@ -23,7 +23,7 @@ interface Props {
   data: string;
   gasLimit: string;
   gasPrice: string;
-  senderAccount: ExtendedAccount;
+  senderAccount: IAccount;
   rawTransaction?: ITxObject;
   signedTransaction?: string;
 }
@@ -59,7 +59,7 @@ function TransactionDetailsDisplay({
           <div className="TransactionDetails-row-column">
             <Button
               basic={true}
-              color={BRIGHT_SKY_BLUE}
+              color={BLUE_BRIGHT}
               onClick={() => setShowDetails(!showDetails)}
               className="TransactionDetails-detailButton"
             >
@@ -145,7 +145,7 @@ function TransactionDetailsDisplay({
                 <div className="TransactionDetails-row stacked">
                   <div className="TransactionDetails-row-column">Signed Transaction:</div>
                   <div className="TransactionDetails-row-data">
-                    <CopyableCodeBlock>{signedTransaction}></CopyableCodeBlock>
+                    <CopyableCodeBlock>{signedTransaction}</CopyableCodeBlock>
                   </div>
                 </div>
               </>

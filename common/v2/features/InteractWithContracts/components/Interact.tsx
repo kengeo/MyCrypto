@@ -8,7 +8,7 @@ import {
   NetworkSelectDropdown,
   InputField,
   Dropdown,
-  InlineErrorMsg,
+  InlineMessage,
   Button,
   AddressField
 } from 'v2/components';
@@ -33,7 +33,7 @@ import { ABIItem } from '../types';
 import { getParsedQueryString } from '../utils';
 import { isValidENSName } from 'v2/services/EthService';
 
-const { BRIGHT_SKY_BLUE } = COLORS;
+const { BLUE_BRIGHT } = COLORS;
 const { SCREEN_SM } = BREAK_POINTS;
 
 const NetworkSelectorWrapper = styled.div`
@@ -124,7 +124,7 @@ const ContractSelectLabelWrapper = styled.div`
 `;
 
 const DeleteLabel = styled(Label)`
-  color: ${BRIGHT_SKY_BLUE};
+  color: ${BLUE_BRIGHT};
   cursor: pointer;
 `;
 
@@ -356,11 +356,10 @@ function Interact(props: CombinedProps) {
                 <InputWrapper>
                   <AddressField
                     fieldName="address"
-                    error={errors && errors.address && errors.address.value}
+                    error={errors && touched.address && errors.address && errors.address.value}
                     network={network}
                     placeholder={translateRaw('CONTRACT_ADDRESS_PLACEHOLDER')}
                     isLoading={resolvingDomain}
-                    touched={touched}
                     onChange={({ target: { value } }) => handleAddressOrDomainChanged(value)}
                     isError={!isValid}
                   />
@@ -410,7 +409,7 @@ function Interact(props: CombinedProps) {
               )}
               {error && (
                 <ErrorWrapper>
-                  <InlineErrorMsg>{error}</InlineErrorMsg>
+                  <InlineMessage>{error}</InlineMessage>
                 </ErrorWrapper>
               )}
             </FieldWrapper>

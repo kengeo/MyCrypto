@@ -3,7 +3,7 @@ import { Field, FieldProps, Form, Formik, FastField } from 'formik';
 import * as Yup from 'yup';
 import { Button } from '@mycrypto/ui';
 import _, { isEmpty } from 'lodash';
-import { formatEther } from 'ethers/utils';
+import { formatEther, parseEther } from 'ethers/utils';
 import BN from 'bn.js';
 import styled from 'styled-components';
 import * as R from 'ramda';
@@ -13,7 +13,7 @@ import questionSVG from 'assets/images/icn-question.svg';
 
 import translate, { translateRaw } from 'v2/translations';
 import {
-  InlineErrorMsg,
+  InlineMessage,
   AccountDropdown,
   AmountInput,
   AssetDropdown,
@@ -31,7 +31,7 @@ import {
 import {
   Asset,
   Network,
-  ExtendedAccount,
+  IAccount,
   StoreAsset,
   WalletId,
   IFormikFields,
@@ -45,7 +45,11 @@ import {
   gasStringsToMaxGasBN,
   convertedToBaseUnit,
   baseToConvertedUnit,
-  isValidPositiveNumber
+  isValidPositiveNumber,
+  isTransactionFeeHigh,
+  isChecksumAddress,
+  isBurnAddress,
+  isValidENSName
 } from 'v2/services/EthService';
 import UnstoppableResolution from 'v2/services/UnstoppableService';
 import { fetchGasPriceEstimates, getGasEstimate } from 'v2/services/ApiService';
@@ -69,8 +73,9 @@ import {
   validateAmountField
 } from './validators/validators';
 import { processFormForEstimateGas, isERC20Tx } from '../helpers';
-import { weiToFloat } from 'v2/utils';
+import { weiToFloat, formatSupportEmail } from 'v2/utils';
 import { ResolutionError } from '@unstoppabledomains/resolution';
+import { InlineMessageType } from 'v2/types/inlineMessages';
 
 export const AdvancedOptionsButton = styled(Button)`
   width: 100%;
@@ -88,7 +93,7 @@ const initialFormikValues: IFormikFields = {
     display: ''
   },
   amount: '',
-  account: {} as ExtendedAccount, // should be renamed senderAccount
+  account: {} as IAccount, // should be renamed senderAccount
   network: {} as Network, // Not a field move to state
   asset: {} as StoreAsset,
   txDataField: '0x',
@@ -138,26 +143,6 @@ const QueryWarning: React.SFC<{}> = () => (
   />
 );
 
-const SendAssetsSchema = Yup.object().shape({
-  amount: Yup.number()
-    .min(0, translateRaw('ERROR_0'))
-    .required(translateRaw('REQUIRED')),
-  account: Yup.object().required(translateRaw('REQUIRED')),
-  address: Yup.object().required(translateRaw('REQUIRED')),
-  gasLimitField: Yup.number()
-    .min(GAS_LIMIT_LOWER_BOUND, translateRaw('ERROR_8'))
-    .max(GAS_LIMIT_UPPER_BOUND, translateRaw('ERROR_8'))
-    .required(translateRaw('REQUIRED')),
-  gasPriceField: Yup.number()
-    .min(GAS_PRICE_GWEI_LOWER_BOUND, translateRaw('ERROR_10'))
-    .max(GAS_PRICE_GWEI_UPPER_BOUND, translateRaw('ERROR_10'))
-    .required(translateRaw('REQUIRED')),
-  nonceField: Yup.number()
-    .integer(translateRaw('ERROR_11'))
-    .min(0, translateRaw('ERROR_11'))
-    .required(translateRaw('REQUIRED'))
-});
-
 export default function SendAssetsForm({ txConfig, onComplete }: IStepComponentProps) {
   const { accounts, userAssets, networks, getAccount } = useContext(StoreContext);
   const { getAssetRate } = useContext(RatesContext);
@@ -166,6 +151,107 @@ export default function SendAssetsForm({ txConfig, onComplete }: IStepComponentP
   const [isResolvingName, setIsResolvingDomain] = useState(false); // Used to indicate recipient-address is ENS name that is currently attempting to be resolved.
   const [baseAsset, setBaseAsset] = useState({} as Asset);
   const [resolutionError, setResolutionError] = useState<ResolutionError>();
+  const [selectedAsset, setAsset] = useState({} as Asset);
+
+  const SendAssetsSchema = Yup.object().shape({
+    amount: Yup.number()
+      .min(0, translateRaw('ERROR_0'))
+      .required(translateRaw('REQUIRED'))
+      .typeError(translateRaw('ERROR_0'))
+      .test(
+        'check-amount',
+        translateRaw('BALANCE_TOO_LOW_ERROR', { $asset: selectedAsset.ticker }),
+        function(value) {
+          const account = this.parent.account;
+          const asset = this.parent.asset;
+          const val = value ? value : 0;
+          if (!isEmpty(account)) {
+            return getAccountBalance(account, asset.type === 'base' ? undefined : asset).gte(
+              parseEther(val.toString())
+            );
+          }
+          return true;
+        }
+      ),
+    account: Yup.object().required(translateRaw('REQUIRED')),
+    address: Yup.object({
+      value: Yup.string()
+        .test(
+          'check-eth-address',
+          translateRaw('TO_FIELD_ERROR'),
+          value =>
+            isValidETHAddress(value) ||
+            (isValidENSName(value) && UnstoppableResolution.isValidDomain(value))
+        )
+        // @ts-ignore Hack as Formik doesn't officially support warnings
+        // tslint:disable-next-line
+        .test('is-checksummed', translate('CHECKSUM_ERROR'), function(value) {
+          if (!isChecksumAddress(value)) {
+            return {
+              name: 'ValidationError',
+              type: InlineMessageType.INFO_CIRCLE,
+              message: translate('CHECKSUM_ERROR')
+            };
+          }
+          return true;
+        })
+        // @ts-ignore Hack as Formik doesn't officially support warnings
+        .test('check-sending-to-yourself', translateRaw('SENDING_TO_YOURSELF'), function(value) {
+          const account = this.parent.account;
+          if (!isEmpty(account) && account.address.toLowerCase() === value.toLowerCase()) {
+            return {
+              name: 'ValidationError',
+              type: InlineMessageType.INFO_CIRCLE,
+              message: translateRaw('SENDING_TO_YOURSELF')
+            };
+          }
+          return true;
+        })
+        // @ts-ignore Hack as Formik doesn't officially support warnings
+        // tslint:disable-next-line
+        .test('check-sending-to-burn', translateRaw('SENDING_TO_BURN_ADDRESS'), function(value) {
+          if (isBurnAddress(value)) {
+            return {
+              name: 'ValidationError',
+              type: InlineMessageType.INFO_CIRCLE,
+              message: translateRaw('SENDING_TO_BURN_ADDRESS')
+            };
+          }
+          return true;
+        })
+    }).required(translateRaw('REQUIRED')),
+    gasLimitField: Yup.number()
+      .min(GAS_LIMIT_LOWER_BOUND, translateRaw('ERROR_8'))
+      .max(GAS_LIMIT_UPPER_BOUND, translateRaw('ERROR_8'))
+      .required(translateRaw('REQUIRED'))
+      .typeError(translateRaw('ERROR_8')),
+    gasPriceField: Yup.number()
+      .min(GAS_PRICE_GWEI_LOWER_BOUND, translateRaw('ERROR_10'))
+      .max(GAS_PRICE_GWEI_UPPER_BOUND, translateRaw('ERROR_10'))
+      .required(translateRaw('REQUIRED'))
+      .typeError(translateRaw('GASPRICE_ERROR')),
+    nonceField: Yup.number()
+      .integer(translateRaw('ERROR_11'))
+      .min(0, translateRaw('ERROR_11'))
+      .required(translateRaw('REQUIRED'))
+      .typeError(translateRaw('ERROR_11'))
+      .test(
+        'check-nonce',
+        // @ts-ignore Hack to allow for returning of Markdown
+        translate('NONCE_ERROR', { $link: formatSupportEmail('Send Page: Nonce Error') }),
+        // @ts-ignore Hack to allow for returning of Markdown
+        async function(value) {
+          const account = this.parent.account;
+          const network = this.parent.network;
+          if (!isEmpty(account)) {
+            const nonce = await getNonce(network, account);
+            return Math.abs(value - nonce) < 10;
+          }
+          return true;
+        }
+      )
+  });
+
   const validAccounts = accounts.filter(account => account.wallet !== WalletId.VIEW_ONLY);
   return (
     <div className="SendAssetsForm">
@@ -227,6 +313,11 @@ export default function SendAssetsForm({ txConfig, onComplete }: IStepComponentP
                 value: unstoppableAddress
               });
             } catch (err) {
+              // Force the field value to error so that isValidAddress is triggered!
+              setFieldValue('address', {
+                ...values.address,
+                value: ''
+              });
               if (UnstoppableResolution.isResolutionError(err)) {
                 setResolutionError(err);
               } else throw err;
@@ -271,7 +362,7 @@ export default function SendAssetsForm({ txConfig, onComplete }: IStepComponentP
             }
           };
 
-          const handleNonceEstimate = async (account: ExtendedAccount) => {
+          const handleNonceEstimate = async (account: IAccount) => {
             if (!values || !values.network || !account) {
               return;
             }
@@ -313,6 +404,7 @@ export default function SendAssetsForm({ txConfig, onComplete }: IStepComponentP
                             form.setFieldValue('gasPriceSlider', data.fast);
                           });
                           form.setFieldValue('network', network || {});
+                          setAsset(option);
                           if (network) {
                             setBaseAsset(
                               getBaseAssetByNetwork({ network, assets: userAssets }) ||
@@ -340,7 +432,7 @@ export default function SendAssetsForm({ txConfig, onComplete }: IStepComponentP
                         name={field.name}
                         value={field.value}
                         accounts={accountsWithAsset}
-                        onSelect={(option: ExtendedAccount) => {
+                        onSelect={(option: IAccount) => {
                           form.setFieldValue('account', option); //if this gets deleted, it no longer shows as selected on interface, would like to set only object keys that are needed instead of full object
                           handleNonceEstimate(option);
                           handleGasEstimate();
@@ -359,8 +451,7 @@ export default function SendAssetsForm({ txConfig, onComplete }: IStepComponentP
                   fieldName="address"
                   handleDomainResolve={handleDomainResolve}
                   onBlur={() => handleGasEstimate()}
-                  error={errors && errors.address && errors.address.value}
-                  touched={touched}
+                  error={errors && touched.address && errors.address && errors.address.value}
                   network={values.network}
                   isLoading={isResolvingName}
                   isError={!isValidAddress}
@@ -392,10 +483,10 @@ export default function SendAssetsForm({ txConfig, onComplete }: IStepComponentP
                           }}
                           placeholder={'0.00'}
                         />
-                        {errors && touched && touched.amount ? (
-                          <InlineErrorMsg className="SendAssetsForm-errors">
+                        {errors && errors.amount && touched && touched.amount ? (
+                          <InlineMessage className="SendAssetsForm-errors">
                             {errors.amount}
-                          </InlineErrorMsg>
+                          </InlineMessage>
                         ) : null}
                       </>
                     );
@@ -444,6 +535,15 @@ export default function SendAssetsForm({ txConfig, onComplete }: IStepComponentP
                     gasEstimates={values.gasEstimates}
                   />
                 )}
+                {isTransactionFeeHigh(
+                  values.amount,
+                  getAssetRate(baseAsset || undefined) || 0,
+                  isERC20Tx(values.asset),
+                  values.gasLimitField.toString(),
+                  values.advancedTransaction
+                    ? values.gasPriceField.toString()
+                    : values.gasPriceSlider.toString()
+                ) && <InlineMessage value={translate('HIGH_TRANSACTION_FEE')} />}
               </fieldset>
               {/* Advanced Options */}
               <div className="SendAssetsForm-advancedOptions">
@@ -476,12 +576,10 @@ export default function SendAssetsForm({ txConfig, onComplete }: IStepComponentP
                               name={field.name}
                               value={field.value}
                               disabled={values.isAutoGasSet}
+                              error={errors && errors.gasLimitField}
                             />
                           )}
                         />
-                        {errors && errors.gasLimitField && (
-                          <InlineErrorMsg>{errors.gasLimitField}</InlineErrorMsg>
-                        )}
                       </div>
                     </div>
                     <div className="SendAssetsForm-advancedOptions-content-priceLimitNonceData">
@@ -497,12 +595,10 @@ export default function SendAssetsForm({ txConfig, onComplete }: IStepComponentP
                               }}
                               name={field.name}
                               value={field.value}
+                              error={errors && errors.gasPriceField}
                             />
                           )}
                         />
-                        {errors && errors.gasPriceField && (
-                          <InlineErrorMsg>{errors.gasPriceField}</InlineErrorMsg>
-                        )}
                       </div>
                     </div>
                     <div className="SendAssetsForm-advancedOptions-content-priceLimitNonceData">
@@ -531,12 +627,10 @@ export default function SendAssetsForm({ txConfig, onComplete }: IStepComponentP
                               }}
                               name={field.name}
                               value={field.value}
+                              error={errors && errors.nonceField}
                             />
                           )}
                         />
-                        {errors && errors.nonceField && (
-                          <InlineErrorMsg>{errors.nonceField}</InlineErrorMsg>
-                        )}
                       </div>
                     </div>
 
