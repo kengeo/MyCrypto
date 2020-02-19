@@ -18,7 +18,6 @@ import {
   AmountInput,
   AssetDropdown,
   WhenQueryExists,
-  AddressField,
   Checkbox
 } from 'v2/components';
 import {
@@ -76,6 +75,7 @@ import { processFormForEstimateGas, isERC20Tx } from '../helpers';
 import { weiToFloat, formatSupportEmail } from 'v2/utils';
 import { ResolutionError } from '@unstoppabledomains/resolution';
 import { InlineMessageType } from 'v2/types/inlineMessages';
+import AddressLookupField from 'v2/components/AddressLookupField';
 
 export const AdvancedOptionsButton = styled(Button)`
   width: 100%;
@@ -295,7 +295,7 @@ export default function SendAssetsForm({ txConfig, onComplete }: IStepComponentP
             }
           };
 
-          const handleDomainResolve = async (name: string) => {
+          const handleDomainResolve = async (name: string): Promise<string | undefined> => {
             if (!values || !values.network) {
               setIsResolvingDomain(false);
               setResolutionError(undefined);
@@ -308,10 +308,7 @@ export default function SendAssetsForm({ txConfig, onComplete }: IStepComponentP
                 name,
                 values.asset.ticker
               );
-              setFieldValue('address', {
-                ...values.address,
-                value: unstoppableAddress
-              });
+              return unstoppableAddress;
             } catch (err) {
               // Force the field value to error so that isValidAddress is triggered!
               setFieldValue('address', {
@@ -447,16 +444,20 @@ export default function SendAssetsForm({ txConfig, onComplete }: IStepComponentP
                 <label htmlFor="address" className="input-group-header">
                   {translate('X_RECIPIENT')}
                 </label>
-                <AddressField
-                  fieldName="address"
-                  handleDomainResolve={handleDomainResolve}
-                  onBlur={() => handleGasEstimate()}
-                  error={errors && touched.address && errors.address && errors.address.value}
-                  network={values.network}
-                  isLoading={isResolvingName}
-                  isError={!isValidAddress}
-                  resolutionError={resolutionError}
-                  placeholder="Enter an Address or Contact"
+                <Field
+                  name="address"
+                  value={values.address}
+                  component={(fieldProps: FieldProps) => (
+                    <AddressLookupField
+                      fieldProps={fieldProps}
+                      network={values.network}
+                      resolutionError={resolutionError}
+                      isValidAddress={isValidAddress}
+                      isResolvingName={isResolvingName}
+                      handleGasEstimate={handleGasEstimate}
+                      handleDomainResolve={handleDomainResolve}
+                    />
+                  )}
                 />
               </fieldset>
               {/* Amount */}
